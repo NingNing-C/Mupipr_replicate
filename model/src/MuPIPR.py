@@ -31,6 +31,13 @@ from sklearn.model_selection import KFold, ShuffleSplit
 from keras import backend as K
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
+# import tensorflow as tf
+# cfg = tf.ConfigProto()
+# cfg.gpu_options.allow_growth = True
+# cfg.gpu_options.per_process_gpu_memory_fraction = 0.25
+
+
+
 def pearson_r(y_true, y_pred):
     x = y_true
     y = y_pred
@@ -92,10 +99,10 @@ count = 0
 ## Serving contextualized embeddings of amino acids ================================
 
 
-vocab_file='../../biLM/corpus/vocab.txt'
-options_file='../../biLM/model/behm_'+model_dim+'skip_2l.ckpt/options.json'
-weight_file='../../biLM/model/behm_'+model_dim+'skip_2l.hdf5'
-token_embedding_file='../../biLM/model/vocab_embedding_'+model_dim+'skip_2l.hdf5'
+vocab_file='../biLM/corpus/vocab.txt'
+options_file='../biLM/model/behm_'+model_dim+'skip_2l.ckpt/options.json'
+weight_file='../biLM/model/behm_'+model_dim+'skip_2l.hdf5'
+token_embedding_file='../biLM/model/vocab_embedding_'+model_dim+'skip_2l.hdf5'
 
 print("Using options_file", options_file)
 # options_file='../model/behm_3_2l.ckpt/options.json'
@@ -130,9 +137,9 @@ elmo_context_output = weight_layers(
 
 def contextualize(sequences):
     batcher = TokenBatcher(vocab_file)
+    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
 
-
-    with tf.Session() as sess:
+    with tf.Session(config=tf.ConfigProto(device_count = {'GPU': 0})) as sess:
         # It is necessary to initialize variables once before running inference.
         sess.run(tf.global_variables_initializer())
 
@@ -150,7 +157,7 @@ def contextualize(sequences):
 
 ## Serving contextualized embeddings of amino acids ================================
 
-def get_session(gpu_fraction=0.25):
+def get_session(gpu_fraction=0.3):
     '''Assume that you have 6GB of GPU memory and want to allocate ~2GB'''
 
     num_threads = os.environ.get('OMP_NUM_THREADS')
@@ -161,6 +168,9 @@ def get_session(gpu_fraction=0.25):
             gpu_options=gpu_options, intra_op_parallelism_threads=num_threads))
     else:
         return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
+def get_cpu_session():
+    return tf.Session(config=tf.ConfigProto(device_count = {'GPU': 0}))
 
 def abs_diff(X):
     assert(len(X) == 2)
@@ -327,8 +337,9 @@ def scale_back(v):
     # else:
     return v * (all_max - all_min) + all_min
 
-KTF.set_session(get_session())
 
+KTF.set_session(get_session(gpu_fraction=0.5))
+# KTF.set_session(get_cpu_session)
 
 for line in tqdm(open(ds_file)):
     if skip_head:
@@ -466,7 +477,7 @@ total_mae = 0.
 total_cov = 0.
 # fp2 = open('records/muhao.'+rst_file[rst_file.rfind('/')+1:], 'w')
 
-fp2 = open('records/pred_record_3G_test.'+rst_file[rst_file.rfind('/')+1:], 'w')
+# fp2 = open('records/pred_record_3G_test.'+rst_file[rst_file.rfind('/')+1:], 'w')
 n_fold = 0
 
 for train, test in train_test:
